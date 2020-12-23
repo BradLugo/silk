@@ -13,8 +13,7 @@ var (
 
 type Neo4jDaoTestSuite struct {
 	suite.Suite
-	dao   *webber.Neo4jDao
-	nodes []string
+	dao *webber.Neo4jDao
 }
 
 func TestCacheDaoTestSuite(t *testing.T) {

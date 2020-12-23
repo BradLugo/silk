@@ -44,6 +44,6 @@ func main() {
 
 	ctx, cancelFx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFx()
-	defer httpSrv.Shutdown(ctx)
+	defer log.Fatal(httpSrv.Shutdown(ctx))
 	log.Fatal(httpSrv.ListenAndServe())
 }
