@@ -1,8 +1,8 @@
-package webber_test
+package db_test
 
 import (
 	"testing"
-	"webber"
+	"webber/db"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -13,7 +13,7 @@ var (
 
 type Neo4jDaoTestSuite struct {
 	suite.Suite
-	dao *webber.Neo4jDao
+	dao *db.Neo4jDao
 }
 
 func TestCacheDaoTestSuite(t *testing.T) {
@@ -24,7 +24,7 @@ func TestCacheDaoTestSuite(t *testing.T) {
 }
 
 func (s *Neo4jDaoTestSuite) SetupSuite() {
-	neo4jDao, err := webber.NewNeo4jDao(neo4jLocalBoltTarget, "", "")
+	neo4jDao, err := db.NewNeo4jDao(neo4jLocalBoltTarget, "", "")
 	if err != nil {
 		s.FailNow("Could not connect to local Neo4j database: ", err.Error())
 	}
@@ -36,11 +36,11 @@ func (s *Neo4jDaoTestSuite) TeardownSuite() {
 }
 
 func (s *Neo4jDaoTestSuite) TestInvalidConnection() {
-	neo4jDao, err := webber.NewNeo4jDao("127.0.0.1:777", "doesNotExist", "fancyPassword")
+	neo4jDao, err := db.NewNeo4jDao("127.0.0.1:777", "doesNotExist", "fancyPassword")
 	s.Nil(neo4jDao)
 	s.Error(err)
 
-	_, err = webber.NewNeo4jDao("bolt://127.0.0.1:777", "doesNotExist", "fancyPassword")
+	_, err = db.NewNeo4jDao("bolt://127.0.0.1:777", "doesNotExist", "fancyPassword")
 	s.Nil(neo4jDao)
 	s.Error(err)
 }

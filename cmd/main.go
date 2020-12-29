@@ -7,15 +7,16 @@ import (
 	"os"
 	"time"
 	"webber"
+	"webber/db"
 )
 
 func main() {
-	var neo4jDao *webber.Neo4jDao
+	var neo4jDao *db.Neo4jDao
 	var err error
 
 	if len(os.Args) == 3 {
 		target := os.Args[2]
-		neo4jDao, err = webber.NewNeo4jDao(target, "", "")
+		neo4jDao, err = db.NewNeo4jDao(target, "", "")
 		if err != nil {
 			log.Panic("error while connecting to Neo4j", err)
 		}
@@ -23,7 +24,7 @@ func main() {
 		target := os.Args[2]
 		username := os.Args[3]
 		password := os.Args[4]
-		neo4jDao, err = webber.NewNeo4jDao(target, username, password)
+		neo4jDao, err = db.NewNeo4jDao(target, username, password)
 		if err != nil {
 			log.Panicln("error while connecting to Neo4j", err)
 		}
@@ -34,7 +35,7 @@ func main() {
 
 	defer neo4jDao.Close()
 
-	router := webber.GetGinEngine(true)
+	router := webber.GetGinEngine(neo4jDao, true)
 	bindAddress := os.Args[1]
 
 	httpSrv := http.Server{
@@ -44,6 +45,6 @@ func main() {
 
 	ctx, cancelFx := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFx()
-	defer log.Fatal(httpSrv.Shutdown(ctx))
+	defer httpSrv.Shutdown(ctx)
 	log.Fatal(httpSrv.ListenAndServe())
 }

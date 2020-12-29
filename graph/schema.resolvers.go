@@ -5,24 +5,30 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"webber/graph/generated"
 	"webber/graph/model"
+	"webber/models"
 )
 
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented"))
-}
+func (r *mutationResolver) CreateNote(ctx context.Context, input model.NewNote) (string, error) {
+	//gc, err := GinContextFromContext(ctx)
 
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented"))
+	n := &models.Note{
+		Title:     input.Title,
+		Text:      &input.Text,
+		Citation:  input.Citation,
+		RelatedTo: nil,
+	}
+
+	uuid, err := r.Dao.CreateNote(n)
+	if err != nil {
+		return "", err
+	}
+
+	return uuid.String(), nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
-// Query returns generated.QueryResolver implementation.
-func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
-
 type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }

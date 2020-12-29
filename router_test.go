@@ -21,7 +21,7 @@ func TestRestSuite(t *testing.T) {
 }
 
 func (s *RestSuite) SetupSuite() {
-	s.engine = webber.GetGinEngine(false)
+	s.engine = webber.GetGinEngine(nil, false)
 }
 
 func (s *RestSuite) TestBasicEngine() {

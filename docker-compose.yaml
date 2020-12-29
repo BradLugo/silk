@@ -4,9 +4,13 @@ services:
   neo4j:
     image: "neo4j:4.2.1"
     hostname: webber-jeo4j
-    container_name: "webber-jeo4j"
+    container_name: "webber-neo4j"
     environment:
       - NEO4J_AUTH=none
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*
+      - NEO4J_apoc_uuid_enabled=true
+      - NEO4JLABS_PLUGINS=["apoc"]
     ports:
       - "7474:7474"
       - "7687:7687"
