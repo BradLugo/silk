@@ -1,14 +1,17 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
+	"webber/graph/model"
+
 	"github.com/google/uuid"
+
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-	"webber/models"
 )
 
 type Dao interface {
-	CreateNote(n *models.Note) (uuid.UUID, error)
+	CreateNote(n *model.NewNote) (*model.Note, error)
 	Close()
 }
 
@@ -42,47 +45,128 @@ func NewNeo4jDao(target, username, password string) (*Neo4jDao, error) {
 	}, nil
 }
 
-func (d *Neo4jDao) CreateNote(n *models.Note) (uuid.UUID, error) {
+func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 	sessionConfig := neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite}
 	session, err := d.driver.NewSession(sessionConfig)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	defer session.Close()
 
-	id, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
-		result, err := transaction.Run(
-			"CREATE (n:Note { uuid: apoc.create.uuid(), text: $text, citation: $citation }) "+
-				"RETURN n.uuid",
-			map[string]interface{}{
-				"text":     n.Text,
-				"citation": n.Citation,
-			})
+	result, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+		var result neo4j.Result
+		var err error
+
+		if nn.RelatedTo != nil && len(nn.RelatedTo) > 0 {
+			result, err = transaction.Run(
+				"CREATE (n:Note { uuid: apoc.create.uuid(), text: $text, citation: $citation }) WITH n "+
+					"UNWIND $relatedTo AS uuid "+
+					"OPTIONAL MATCH (m:Note { uuid: uuid })"+
+					"CREATE r=((n)-[:RELATED_TO]->(m)) "+
+					"RETURN n as new_node, collect(r) as associations",
+				map[string]interface{}{
+					"text":      nn.Text,
+					"citation":  nn.Citation,
+					"relatedTo": nn.RelatedTo,
+				})
+		} else {
+			result, err = transaction.Run(
+				"CREATE (nn:Note { uuid: apoc.create.uuid(), text: $text, citation: $citation }) "+
+					"RETURN nn",
+				map[string]interface{}{
+					"text":     nn.Text,
+					"citation": nn.Citation,
+				})
+		}
+
 		if err != nil {
 			return nil, err
 		}
 
 		if result.Next() {
-			return result.Record().GetByIndex(0), nil
+			node := result.Record().GetByIndex(0).(neo4j.Node)
+			jsonbody, err := json.Marshal(node.Props())
+			if err != nil {
+				return nil, err
+			}
+
+			n := &model.Note{}
+			if err := json.Unmarshal(jsonbody, n); err != nil {
+				return nil, err
+			}
+
+			if suuid, ok := node.Props()["uuid"]; ok {
+				if _, err := uuid.Parse(suuid.(string)); err != nil {
+					return nil, err
+				}
+				n.ID = suuid.(string)
+			} else {
+				return nil, fmt.Errorf("could not find uuid")
+			}
+
+			if nn.RelatedTo != nil && len(nn.RelatedTo) > 0 {
+				pl := result.Record().GetByIndex(1).([]interface{})
+				for _, up := range pl {
+					p := up.(neo4j.Path)
+
+					rids := make(map[int64]struct{})
+					for _, pr := range p.Relationships() {
+						if pr.Type() == "RELATED_TO" {
+							if pr.StartId() != node.Id() && pr.EndId() == node.Id() {
+								rids[pr.StartId()] = struct{}{}
+							} else if pr.StartId() == node.Id() && pr.EndId() != node.Id() {
+								rids[pr.EndId()] = struct{}{}
+							} else if pr.StartId() == node.Id() && pr.EndId() == node.Id() {
+								return nil, fmt.Errorf("circular relationship on new node")
+							} else {
+								return nil, fmt.Errorf("relationship does contain new node")
+							}
+						}
+					}
+
+					for _, pn := range p.Nodes() {
+						if pn.Id() == node.Id() {
+							continue
+						}
+
+						if _, found := rids[pn.Id()]; found {
+							jsonbody, err := json.Marshal(pn.Props())
+							if err != nil {
+								return nil, err
+							}
+
+							rn := &model.Note{}
+							if err := json.Unmarshal(jsonbody, rn); err != nil {
+								return nil, err
+							}
+
+							if suuid, ok := pn.Props()["uuid"]; ok {
+								if _, err := uuid.Parse(suuid.(string)); err != nil {
+									return nil, err
+								}
+								rn.ID = suuid.(string)
+							} else {
+								return nil, fmt.Errorf("could not find uuid")
+							}
+
+							n.RelatedTo = append(n.RelatedTo, rn)
+						} else {
+							return nil, fmt.Errorf("related node in path not found in relationships")
+						}
+					}
+				}
+			}
+
+			return n, nil
 		}
 
 		return nil, result.Err()
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 
-	sid, ok := id.(string)
-	if !ok {
-		return uuid.Nil, fmt.Errorf("could not convert following interface{} to a string: %+v", id)
-	}
-
-	pid, err := uuid.Parse(sid)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	return pid, nil
+	return result.(*model.Note), nil
 }
 
 func (d *Neo4jDao) Close() {

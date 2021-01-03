@@ -3,14 +3,16 @@
 package model
 
 type NewNote struct {
-	Title    *string `json:"title"`
-	Text     string  `json:"text"`
-	Citation *string `json:"citation"`
+	Title     *string   `json:"title"`
+	Text      string    `json:"text"`
+	Citation  *string   `json:"citation"`
+	RelatedTo []*string `json:"relatedTo"`
 }
 
 type Note struct {
-	ID       string  `json:"id"`
-	Title    *string `json:"title"`
-	Text     *string `json:"text"`
-	Citation *string `json:"citation"`
+	ID        string  `json:"id"`
+	Title     *string `json:"title"`
+	Text      *string `json:"text"`
+	Citation  *string `json:"citation"`
+	RelatedTo []*Note `json:"relatedTo"`
 }

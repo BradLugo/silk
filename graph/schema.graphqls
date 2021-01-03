@@ -7,14 +7,16 @@ type Note {
   title: String
   text: String
   citation: String
+  relatedTo: [Note]
 }
 
 input NewNote {
   title: String
   text: String!
   citation: String
+  relatedTo: [ID]
 }
 
 type Mutation {
-  createNote(input: NewNote!): ID!
+  createNote(input: NewNote!): Note
 }

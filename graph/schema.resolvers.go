@@ -7,25 +7,10 @@ import (
 	"context"
 	"webber/graph/generated"
 	"webber/graph/model"
-	"webber/models"
 )
 
-func (r *mutationResolver) CreateNote(ctx context.Context, input model.NewNote) (string, error) {
-	//gc, err := GinContextFromContext(ctx)
-
-	n := &models.Note{
-		Title:     input.Title,
-		Text:      &input.Text,
-		Citation:  input.Citation,
-		RelatedTo: nil,
-	}
-
-	uuid, err := r.Dao.CreateNote(n)
-	if err != nil {
-		return "", err
-	}
-
-	return uuid.String(), nil
+func (r *mutationResolver) CreateNote(ctx context.Context, input model.NewNote) (*model.Note, error) {
+	return r.Dao.CreateNote(&input)
 }
 
 // Mutation returns generated.MutationResolver implementation.
