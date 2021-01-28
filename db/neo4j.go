@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"github.com/neo4j/neo4j-go-driver/v4/neo4j"
 )
 
 type Dao interface {
@@ -20,19 +20,14 @@ type Neo4jDao struct {
 }
 
 func NewNeo4jDao(target, username, password string) (*Neo4jDao, error) {
-	driver, err := neo4j.NewDriver(target, neo4j.BasicAuth(username, password, ""), func(config *neo4j.Config) {
-		config.Encrypted = false
-	})
+	driver, err := neo4j.NewDriver(target, neo4j.BasicAuth(username, password, ""))
 
 	if err != nil {
 		return nil, err
 	}
 
 	sessionConfig := neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite}
-	session, err := driver.NewSession(sessionConfig)
-	if err != nil {
-		return nil, err
-	}
+	session := driver.NewSession(sessionConfig)
 	defer session.Close()
 
 	_, err = session.Run("CALL db.ping()", nil)
@@ -47,18 +42,15 @@ func NewNeo4jDao(target, username, password string) (*Neo4jDao, error) {
 
 func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 	sessionConfig := neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite}
-	session, err := d.driver.NewSession(sessionConfig)
-	if err != nil {
-		return nil, err
-	}
+	session := d.driver.NewSession(sessionConfig)
 	defer session.Close()
 
-	result, err := session.WriteTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
+	result, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var result neo4j.Result
 		var err error
 
 		if nn.RelatedTo != nil && len(nn.RelatedTo) > 0 {
-			result, err = transaction.Run(
+			result, err = tx.Run(
 				"CREATE (n:Note { uuid: apoc.create.uuid(), text: $text, citation: $citation }) WITH n "+
 					"UNWIND $relatedTo AS uuid "+
 					"OPTIONAL MATCH (m:Note { uuid: uuid })"+
@@ -70,7 +62,7 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 					"relatedTo": nn.RelatedTo,
 				})
 		} else {
-			result, err = transaction.Run(
+			result, err = tx.Run(
 				"CREATE (nn:Note { uuid: apoc.create.uuid(), text: $text, citation: $citation }) "+
 					"RETURN nn",
 				map[string]interface{}{
@@ -84,8 +76,8 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 		}
 
 		if result.Next() {
-			node := result.Record().GetByIndex(0).(neo4j.Node)
-			jsonbody, err := json.Marshal(node.Props())
+			node := result.Record().Values[0].(neo4j.Node)
+			jsonbody, err := json.Marshal(node.Props)
 			if err != nil {
 				return nil, err
 			}
@@ -95,7 +87,7 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 				return nil, err
 			}
 
-			if suuid, ok := node.Props()["uuid"]; ok {
+			if suuid, ok := node.Props["uuid"]; ok {
 				if _, err := uuid.Parse(suuid.(string)); err != nil {
 					return nil, err
 				}
@@ -105,18 +97,18 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 			}
 
 			if nn.RelatedTo != nil && len(nn.RelatedTo) > 0 {
-				pl := result.Record().GetByIndex(1).([]interface{})
+				pl := result.Record().Values[1].([]interface{})
 				for _, up := range pl {
 					p := up.(neo4j.Path)
 
 					rids := make(map[int64]struct{})
-					for _, pr := range p.Relationships() {
-						if pr.Type() == "RELATED_TO" {
-							if pr.StartId() != node.Id() && pr.EndId() == node.Id() {
-								rids[pr.StartId()] = struct{}{}
-							} else if pr.StartId() == node.Id() && pr.EndId() != node.Id() {
-								rids[pr.EndId()] = struct{}{}
-							} else if pr.StartId() == node.Id() && pr.EndId() == node.Id() {
+					for _, pr := range p.Relationships {
+						if pr.Type == "RELATED_TO" {
+							if pr.StartId != node.Id && pr.EndId == node.Id {
+								rids[pr.StartId] = struct{}{}
+							} else if pr.StartId == node.Id && pr.EndId != node.Id {
+								rids[pr.EndId] = struct{}{}
+							} else if pr.StartId == node.Id && pr.EndId == node.Id {
 								return nil, fmt.Errorf("circular relationship on new node")
 							} else {
 								return nil, fmt.Errorf("relationship does contain new node")
@@ -124,13 +116,13 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 						}
 					}
 
-					for _, pn := range p.Nodes() {
-						if pn.Id() == node.Id() {
+					for _, pn := range p.Nodes {
+						if pn.Id == node.Id {
 							continue
 						}
 
-						if _, found := rids[pn.Id()]; found {
-							jsonbody, err := json.Marshal(pn.Props())
+						if _, found := rids[pn.Id]; found {
+							jsonbody, err := json.Marshal(pn.Props)
 							if err != nil {
 								return nil, err
 							}
@@ -140,7 +132,7 @@ func (d *Neo4jDao) CreateNote(nn *model.NewNote) (*model.Note, error) {
 								return nil, err
 							}
 
-							if suuid, ok := pn.Props()["uuid"]; ok {
+							if suuid, ok := pn.Props["uuid"]; ok {
 								if _, err := uuid.Parse(suuid.(string)); err != nil {
 									return nil, err
 								}
