@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -52,8 +51,8 @@ func main() {
 	defer cancelFx()
 	defer func() {
 		if err := httpSrv.Shutdown(ctx); err != nil {
-			log.Fatal("error while shutting down http server", zap.Error(err))
+			logger.Fatalw("error while shutting down http server", zap.Error(err))
 		}
 	}()
-	log.Fatal(httpSrv.ListenAndServe())
+	logger.Fatalw(httpSrv.ListenAndServe())
 }
