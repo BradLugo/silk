@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"webber/graph/model"
+	"webber/logging"
 
 	"github.com/google/uuid"
 
@@ -17,10 +18,13 @@ type Dao interface {
 
 type Neo4jDao struct {
 	driver neo4j.Driver
+	logger logging.Logger
 }
 
-func NewNeo4jDao(target, username, password string) (*Neo4jDao, error) {
-	driver, err := neo4j.NewDriver(target, neo4j.BasicAuth(username, password, ""))
+func NewNeo4jDao(target, username, password string, logger logging.Logger) (*Neo4jDao, error) {
+	driver, err := neo4j.NewDriver(target, neo4j.BasicAuth(username, password, ""), func(config *neo4j.Config) {
+		config.Log = logger
+	})
 
 	if err != nil {
 		return nil, err
@@ -37,6 +41,7 @@ func NewNeo4jDao(target, username, password string) (*Neo4jDao, error) {
 
 	return &Neo4jDao{
 		driver: driver,
+		logger: logger,
 	}, nil
 }
 
